@@ -1,0 +1,41 @@
+# 项目进度
+
+## 2026-11-22 任务记录
+
+- 2026-11-22 22:32 目标：从空目录实现 Vue 3 + Node.js 的 HTTP 定时请求工具，支持多种方法、参数、顺序间隔执行、实时 NDJSON 结果流、停止与配置本地保存。
+- 2026-11-22 22:32 约束：本机个人使用；允许本地和内网地址；仅允许 HTTP/HTTPS 且拒绝 URL 凭据；不设置次数、间隔、响应大小或请求时长上限；单次失败后继续。
+- 2026-11-22 22:32 关键变更：完成 TypeScript 工程、共享事件协议、Express 顺序调度与 NDJSON 流、Vue 深色工具台、本地配置保存、停止传播和运行文档。
+- 2026-11-22 22:32 验证：18 个测试全部通过；前后端 TypeScript 检查通过；Vite 与 Node 生产构建通过；生产首页和一次真实 NDJSON 请求冒烟验证通过。
+- 2026-11-22 22:32 风险：按用户选择未设置次数、间隔、响应大小和请求时长上限；极端输入可能长期运行或消耗大量内存。该工具允许本地与内网目标，不应未经认证直接暴露到公网。
+- 2026-11-22 22:32 当前状态：已完成，无剩余待办。
+- 2026-11-22 22:35 新增需求：为 Header 名称和取值输入框提供常用参数联想提示，同时保留自由输入能力。
+- 2026-11-22 22:35 当前状态：实施 Header 提示功能。
+- 2026-11-22 22:47 完成：Header 名称和取值支持原生联想下拉，包含常用认证、内容类型、缓存、语言、压缩和 API Key 项，并允许自由输入自定义值。
+- 2026-11-22 22:47 验证：19 个测试全部通过；前后端 TypeScript 检查和生产构建通过。
+- 2026-11-22 22:47 当前状态：新增需求已完成，无剩余待办。
+- 2026-11-22 22:50 新增需求：加入 Cookie Jar，自动保存目标响应的 Set-Cookie（含 HttpOnly）并在同一次任务的后续请求中按 Cookie 规则携带。
+- 2026-11-22 22:50 决策：Cookie Jar 按运行任务隔离；每次开始运行创建新 Jar；手动 Cookie Header 保留并优先覆盖同名自动 Cookie。
+- 2026-11-22 22:50 当前状态：实施 Cookie Jar 与回归测试。
+- 2026-11-22 22:55 完成：每次运行使用独立 Cookie Jar，支持保存和发送 HttpOnly、Domain、Path、Secure、Expires/SameSite Cookie，重定向链同样生效；手动 Cookie 优先覆盖同名自动值。
+- 2026-11-22 22:55 变更：新增 fetch-cookie 与 tough-cookie 依赖，界面显示 Cookie Jar 开启状态，文档补充 Cookie 行为。
+- 2026-11-22 22:55 验证：21 个测试全部通过，覆盖 HttpOnly 后续携带、重定向携带和手动覆盖；前后端类型检查及生产构建通过。
+- 2026-11-22 22:55 当前状态：Cookie Jar 功能完成，无剩余待办。
+- 2026-11-22 23:00 新增需求：根据用户截图，为 POST/PUT/PATCH 增加文本键值形式的 multipart/form-data 请求体，不包含文件上传。
+- 2026-11-22 23:00 决策：字段支持启用/禁用、增删和重复名称；multipart boundary 由后端自动生成并覆盖手动 Content-Type，避免缺少 boundary。
+- 2026-11-22 23:00 当前状态：实施 Form Data 请求体和测试。
+- 2026-11-22 23:13 完成：POST/PUT/PATCH 新增 FORM DATA 模式，支持文本键值字段的增删、启停、重复名称和本地保存；后端使用原生 FormData 自动生成 Content-Type 与 boundary。
+- 2026-11-22 23:13 验证：23 个测试全部通过，已验证中文字段、重复字段、禁用字段及 boundary；前后端类型检查和生产构建通过。
+- 2026-11-22 23:13 当前状态：Form Data 功能完成；文件字段不在本次截图所示范围内。
+- 2026-11-22 23:22 诊断：用户调用 CrownCAD setNickName 时在 0.58 ms 内出现网络错误。只读检查确认 DNS、TCP 443、Node fetch 和 curl 均可连通目标，HEAD 返回 404，排除目标不可达及代理问题。
+- 2026-11-22 23:22 根因：工具中 Header 名称实际填写为带双引号的 `"Cookie"`，Node 明确报 `Headers.append: ""Cookie"" is an invalid header name.`；Form Data 字段名和值也带了不应存在的双引号，且当前值并非目标昵称。
+- 2026-11-22 23:22 下一步：用户需去除 Header/字段/值外围双引号，Form Data 使用字段名 `nickname` 和期望昵称；若服务仍校验来源，再补齐原请求中的 Language、Origin、Referer。未再次提交修改昵称请求。
+- 2026-11-22 23:30 新增需求：默认补全浏览器常见请求头，动态读取当前浏览器 User-Agent 和语言，并根据来源页面生成 Origin、Referer；手动 Header 优先。
+- 2026-11-22 23:30 约束：普通 localhost 页面无法读取另一个浏览器标签页的 URL 或请求头，因此新增可保存的“来源页面 URL”；未填写时按目标 URL 同源推导。
+- 2026-11-22 23:30 当前状态：实施浏览器头自动补全与测试。
+- 2026-11-22 23:45 完成：默认开启 Browser Headers；动态读取当前浏览器 User-Agent 和 languages，生成 Accept-Language，并补充 Accept、中文 Language、Origin、Referer。来源页面可保存，留空按目标同源推导，手动 Header 优先。
+- 2026-11-22 23:45 验证：26 个测试全部通过，覆盖动态浏览器头、手动覆盖和同源推导；前后端类型检查及生产构建通过。
+- 2026-11-22 23:45 限制：localhost 页面无法读取另一个标签页的 URL、Cookie 或完整请求头；跨域接口仍需填写真实来源页面。Node 的 TLS/HTTP 协议指纹仍不同于真实 Chrome。
+- 2026-11-22 23:45 当前状态：浏览器头自动补全功能完成，无剩余待办。
+- 2026-11-22 23:50 诊断：修正引号后请求已到达 CrownCAD，但返回 403。界面中来源页面 URL 为空，实际自动发送 Origin/Referer 为 `https://cad-aps.crowncad.com`，与浏览器成功请求的 `https://cad.crowncad.com` 不同。
+- 2026-11-22 23:50 证据：403 响应体为 application/octet-stream 20 B，响应头 Vary 包含 Origin、Access-Control-Request-Method、Access-Control-Request-Headers；高度符合 Spring 常见的 20 字节 `Invalid CORS request`。
+- 2026-11-22 23:50 下一步：来源页面 URL 填 `https://cad.crowncad.com/cad/usersetting` 后重试；工具将生成正确 Origin 与 Referer。未代替用户提交修改昵称请求。

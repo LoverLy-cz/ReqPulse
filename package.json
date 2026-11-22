@@ -1,0 +1,37 @@
+{
+  "name": "req-pulse",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"tsx watch server/index.ts\" \"vite --host 127.0.0.1\"",
+    "build": "pnpm run typecheck && vite build && tsc -p server/tsconfig.json",
+    "start": "node dist/server/index.js",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "typecheck": "vue-tsc --noEmit -p client/tsconfig.json && tsc --noEmit -p server/tsconfig.json"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "fetch-cookie": "^3.2.0",
+    "tough-cookie": "^6.1.0",
+    "vue": "^3.5.22",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.9.1",
+    "@types/supertest": "^6.0.3",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
+    "concurrently": "^9.2.1",
+    "jsdom": "^27.0.1",
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.1"
+  },
+  "packageManager": "pnpm@10.16.0"
+}
