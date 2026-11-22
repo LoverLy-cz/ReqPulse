@@ -3,6 +3,8 @@ import type { RunConfig } from '../../shared/types';
 export const STORAGE_KEY = 'http-more:request-config';
 export const BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY =
   'http-more:migration:browser-headers-default-off';
+export const THEME_STORAGE_KEY = 'req-pulse:theme';
+export type ThemeMode = 'dark' | 'light';
 
 export function saveConfig(config: RunConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -31,4 +33,12 @@ export function migrateBrowserHeadersDefaultOff(config: RunConfig): RunConfig {
       enabled: false,
     },
   };
+}
+
+export function loadTheme(): ThemeMode {
+  return localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark';
+}
+
+export function saveTheme(theme: ThemeMode): void {
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
 }

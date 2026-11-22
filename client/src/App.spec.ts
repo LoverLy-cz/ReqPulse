@@ -3,7 +3,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
-import { STORAGE_KEY } from './storage';
+import { STORAGE_KEY, THEME_STORAGE_KEY } from './storage';
 
 const runRequestsMock = vi.fn();
 vi.mock('./runStream', () => ({
@@ -25,6 +25,18 @@ describe('App', () => {
 
     expect(wrapper.findAll('.kv-row')).toHaveLength(1);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').query[0].key).toBe('page');
+  });
+
+  it('switches between dark and light themes and persists the choice', async () => {
+    const wrapper = mount(App);
+    const toggle = wrapper.get('button[aria-label="切换为浅色主题"]');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+
+    await toggle.trigger('click');
+
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
+    expect(wrapper.get('button[aria-label="切换为深色主题"]')).toBeTruthy();
   });
 
   it('offers common header name and value suggestions while allowing free input', async () => {

@@ -3,7 +3,14 @@ import { computed, reactive, ref, watch } from 'vue';
 import type { HttpMethod, KeyValueItem, RunConfig, RunEvent, RunSummary } from '../../shared/types';
 import KeyValueEditor from './components/KeyValueEditor.vue';
 import ResponseCard from './components/ResponseCard.vue';
-import { loadConfig, migrateBrowserHeadersDefaultOff, saveConfig } from './storage';
+import {
+  loadConfig,
+  loadTheme,
+  migrateBrowserHeadersDefaultOff,
+  saveConfig,
+  saveTheme,
+  type ThemeMode,
+} from './storage';
 import { runRequests } from './runStream';
 
 type ResultEvent = Extract<RunEvent, { type: 'request_completed' | 'request_failed' }>;
@@ -66,6 +73,7 @@ const running = ref(false);
 const currentIndex = ref(0);
 const errorMessage = ref('');
 const stopped = ref(false);
+const theme = ref<ThemeMode>(loadTheme());
 let controller: AbortController | null = null;
 
 const supportsBody = computed(() => ['POST', 'PUT', 'PATCH'].includes(config.method));
@@ -99,8 +107,21 @@ watch(
   { deep: true },
 );
 
+watch(
+  theme,
+  (value) => {
+    document.documentElement.dataset.theme = value;
+    saveTheme(value);
+  },
+  { immediate: true },
+);
+
 function makeItem(): KeyValueItem {
   return { id: crypto.randomUUID(), enabled: true, key: '', value: '' };
+}
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
 }
 
 function buildAcceptLanguage(languages: readonly string[]): string {
@@ -238,6 +259,16 @@ function handleEvent(event: RunEvent) {
         <p class="eyebrow">REQUEST ORCHESTRATOR</p>
         <h1>HTTP <em>MORE</em></h1>
       </div>
+      <button
+        class="theme-toggle"
+        :class="{ light: theme === 'light' }"
+        type="button"
+        :aria-label="theme === 'dark' ? '切换为浅色主题' : '切换为深色主题'"
+        :title="theme === 'dark' ? '切换为浅色主题' : '切换为深色主题'"
+        @click="toggleTheme"
+      >
+        <span aria-hidden="true">☀</span><i></i><span aria-hidden="true">☾</span>
+      </button>
       <div class="connection"><i></i> LOCAL ENGINE</div>
     </header>
 

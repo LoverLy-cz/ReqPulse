@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#0b0e11" />
     <meta name="description" content="按次数和间隔重复发送 HTTP 请求，实时查看响应结果。" />
     <title>HTTP More · 请求控制台</title>
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem('req-pulse:theme') === 'light' ? 'light' : 'dark';
+    </script>
   </head>
   <body>
     <div id="app"></div>

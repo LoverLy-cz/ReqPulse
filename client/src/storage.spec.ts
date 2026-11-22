@@ -5,9 +5,12 @@ import type { RunConfig } from '../../shared/types';
 import {
   BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY,
   loadConfig,
+  loadTheme,
   migrateBrowserHeadersDefaultOff,
   saveConfig,
+  saveTheme,
   STORAGE_KEY,
+  THEME_STORAGE_KEY,
 } from './storage';
 
 const fallback: RunConfig = {
@@ -47,5 +50,13 @@ describe('request config storage', () => {
     expect(migrateBrowserHeadersDefaultOff(oldConfig).browserHeaders?.enabled).toBe(false);
     expect(localStorage.getItem(BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY)).toBe('1');
     expect(migrateBrowserHeadersDefaultOff(oldConfig).browserHeaders?.enabled).toBe(true);
+  });
+
+  it('persists a valid theme and falls back to dark', () => {
+    expect(loadTheme()).toBe('dark');
+    localStorage.setItem(THEME_STORAGE_KEY, 'unknown');
+    expect(loadTheme()).toBe('dark');
+    saveTheme('light');
+    expect(loadTheme()).toBe('light');
   });
 });
