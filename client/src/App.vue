@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import type { HttpMethod, KeyValueItem, RunConfig, RunEvent, RunSummary } from '../../shared/types';
 import KeyValueEditor from './components/KeyValueEditor.vue';
 import ResponseCard from './components/ResponseCard.vue';
-import { loadConfig, saveConfig } from './storage';
+import { loadConfig, migrateBrowserHeadersDefaultOff, saveConfig } from './storage';
 import { runRequests } from './runStream';
 
 type ResultEvent = Extract<RunEvent, { type: 'request_completed' | 'request_failed' }>;
@@ -43,14 +43,14 @@ const defaultConfig: RunConfig = {
   headers: [],
   body: { mode: 'json', value: '{\n  "hello": "world"\n}' },
   browserHeaders: {
-    enabled: true,
+    enabled: false,
     sourceUrl: '',
     userAgent: detectedUserAgent,
     acceptLanguage: detectedAcceptLanguage,
   },
 };
 
-const loadedConfig = loadConfig(defaultConfig);
+const loadedConfig = migrateBrowserHeadersDefaultOff(loadConfig(defaultConfig));
 loadedConfig.browserHeaders = {
   ...defaultConfig.browserHeaders!,
   ...loadedConfig.browserHeaders,

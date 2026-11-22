@@ -39,3 +39,10 @@
 - 2026-11-22 23:50 诊断：修正引号后请求已到达 CrownCAD，但返回 403。界面中来源页面 URL 为空，实际自动发送 Origin/Referer 为 `https://cad-aps.crowncad.com`，与浏览器成功请求的 `https://cad.crowncad.com` 不同。
 - 2026-11-22 23:50 证据：403 响应体为 application/octet-stream 20 B，响应头 Vary 包含 Origin、Access-Control-Request-Method、Access-Control-Request-Headers；高度符合 Spring 常见的 20 字节 `Invalid CORS request`。
 - 2026-11-22 23:50 下一步：来源页面 URL 填 `https://cad.crowncad.com/cad/usersetting` 后重试；工具将生成正确 Origin 与 Referer。未代替用户提交修改昵称请求。
+- 2026-11-23 00:05 新增需求：Browser Headers 默认改为关闭；现有浏览器中由旧默认值保存的开启状态也需一次性迁移为关闭，之后继续记住用户手动选择。
+- 2026-11-23 00:05 项目位置：项目已由原路径移动/重命名为 `D:\dev\product\req-pulse`，当前开发服务器确认从该目录运行。
+- 2026-11-23 00:05 当前状态：实施默认关闭与本地配置迁移。
+- 2026-11-23 00:17 完成：Browser Headers 新配置默认 OFF；新增一次性迁移，将旧版本自动保存的默认开启状态切为关闭，迁移后继续持久化用户手动选择。
+- 2026-11-23 00:17 验证：27 个测试全部通过，覆盖一次性迁移和手动重新开启；前后端类型检查及生产构建通过。
+- 2026-11-23 00:17 当前状态：默认关闭需求完成，无剩余待办。
+- 2026-11-23 00:19 交付：用户要求提交 Git；计划仅提交 Browser Headers 默认关闭、一次性迁移、测试与进度记录，排除无关 `.idea/vcs.xml`。

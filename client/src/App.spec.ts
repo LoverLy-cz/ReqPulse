@@ -52,6 +52,7 @@ describe('App', () => {
   it('detects browser headers and sends the configured source page', async () => {
     runRequestsMock.mockResolvedValue(undefined);
     const wrapper = mount(App);
+    await wrapper.get('input[aria-label="自动补全浏览器请求头"]').setValue(true);
     const sourceInput = wrapper.get('input[aria-label="来源页面 URL"]');
     await sourceInput.setValue('https://cad.crowncad.com/cad/usersetting');
     await wrapper.get('.run-button').trigger('click');
