@@ -16,6 +16,11 @@ describe('App', () => {
     runRequestsMock.mockReset();
   });
 
+  it('uses the Req Pulse brand name', () => {
+    const wrapper = mount(App);
+    expect(wrapper.get('h1').text()).toBe('REQ PULSE');
+  });
+
   it('adds query rows and persists edited config', async () => {
     const wrapper = mount(App);
     await wrapper.get('.kv-editor .empty-add').trigger('click');

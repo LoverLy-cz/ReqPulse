@@ -257,7 +257,7 @@ function handleEvent(event: RunEvent) {
       <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
       <div>
         <p class="eyebrow">REQUEST ORCHESTRATOR</p>
-        <h1>HTTP <em>MORE</em></h1>
+        <h1>REQ <em>PULSE</em></h1>
       </div>
       <button
         class="theme-toggle"

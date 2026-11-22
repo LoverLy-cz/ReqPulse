@@ -7,5 +7,5 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(currentDir, '../client');
 
 createApp(clientDist).listen(port, '127.0.0.1', () => {
-  console.log(`HTTP More 已启动：http://127.0.0.1:${port}`);
+  console.log(`Req Pulse 已启动：http://127.0.0.1:${port}`);
 });
