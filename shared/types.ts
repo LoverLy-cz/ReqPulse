@@ -37,6 +37,27 @@ export interface RunSummary {
   averageDurationMs: number;
 }
 
+export type ScheduledRunStatus = 'scheduled' | 'running' | 'completed' | 'cancelled' | 'failed';
+
+export interface ScheduledRunView {
+  id: string;
+  createdAt: string;
+  executeAt: string;
+  status: ScheduledRunStatus;
+  request: {
+    method: HttpMethod;
+    url: string;
+    count: number;
+    intervalMs: number;
+  };
+  summary?: RunSummary;
+  error?: string;
+}
+
+export interface ScheduledRunDetails extends ScheduledRunView {
+  events: RunEvent[];
+}
+
 export type ResponseBody =
   | { kind: 'json'; contentType: string; sizeBytes: number; content: unknown }
   | { kind: 'text'; contentType: string; sizeBytes: number; content: string }

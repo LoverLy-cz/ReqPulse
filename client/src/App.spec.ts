@@ -6,14 +6,34 @@ import App from './App.vue';
 import { STORAGE_KEY, THEME_STORAGE_KEY } from './storage';
 
 const runRequestsMock = vi.fn();
+const createScheduleMock = vi.fn();
+const listSchedulesMock = vi.fn();
+const getScheduleMock = vi.fn();
+const cancelScheduleMock = vi.fn();
+const deleteScheduleRecordMock = vi.fn();
+const clearScheduleRecordsMock = vi.fn();
 vi.mock('./runStream', () => ({
   runRequests: (...args: unknown[]) => runRequestsMock(...args),
+}));
+vi.mock('./scheduleApi', () => ({
+  createSchedule: (...args: unknown[]) => createScheduleMock(...args),
+  listSchedules: (...args: unknown[]) => listSchedulesMock(...args),
+  getSchedule: (...args: unknown[]) => getScheduleMock(...args),
+  cancelSchedule: (...args: unknown[]) => cancelScheduleMock(...args),
+  deleteScheduleRecord: (...args: unknown[]) => deleteScheduleRecordMock(...args),
+  clearScheduleRecords: (...args: unknown[]) => clearScheduleRecordsMock(...args),
 }));
 
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
     runRequestsMock.mockReset();
+    createScheduleMock.mockReset();
+    listSchedulesMock.mockReset().mockResolvedValue([]);
+    getScheduleMock.mockReset();
+    cancelScheduleMock.mockReset();
+    deleteScheduleRecordMock.mockReset();
+    clearScheduleRecordsMock.mockReset();
   });
 
   it('uses the Req Pulse brand name', () => {
@@ -164,5 +184,132 @@ describe('App', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('已手动停止');
+  });
+
+  it('creates a one-time backend schedule for a future date', async () => {
+    createScheduleMock.mockResolvedValue({ id: 'scheduled-1' });
+    const wrapper = mount(App);
+    await flushPromises();
+    await wrapper.get('input[aria-label="执行日期时间"]').setValue('2099-01-02T03:04');
+    await wrapper.find('.schedule-create button').trigger('click');
+    await flushPromises();
+
+    expect(createScheduleMock).toHaveBeenCalledOnce();
+    expect(createScheduleMock.mock.calls[0][0]).toBe(new Date('2099-01-02T03:04').toISOString());
+    expect(createScheduleMock.mock.calls[0][1]).toMatchObject({
+      url: 'https://httpbin.org/get',
+      method: 'GET',
+      count: 3,
+    });
+  });
+
+  it('shows and cancels a waiting backend schedule', async () => {
+    const task = {
+      id: 'scheduled-2',
+      createdAt: '2026-11-23T00:00:00.000Z',
+      executeAt: '2099-01-02T03:04:00.000Z',
+      status: 'scheduled',
+      request: { method: 'POST', url: 'https://example.com/job', count: 1, intervalMs: 0 },
+    };
+    listSchedulesMock.mockResolvedValueOnce([task]).mockResolvedValueOnce([{ ...task, status: 'cancelled' }]);
+    cancelScheduleMock.mockResolvedValue({ ...task, status: 'cancelled' });
+    const wrapper = mount(App);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('等待执行');
+    await wrapper.get('.schedule-actions button').trigger('click');
+    await flushPromises();
+
+    expect(cancelScheduleMock).toHaveBeenCalledWith('scheduled-2');
+    expect(wrapper.text()).toContain('已取消');
+    wrapper.unmount();
+  });
+
+  it('automatically loads results when a scheduled task completes', async () => {
+    vi.useFakeTimers();
+    try {
+      const scheduledTask = {
+        id: 'scheduled-3',
+        createdAt: '2026-11-23T00:00:00.000Z',
+        executeAt: '2099-01-02T03:04:00.000Z',
+        status: 'scheduled',
+        request: { method: 'GET', url: 'https://example.com/job', count: 1, intervalMs: 0 },
+      };
+      listSchedulesMock
+        .mockResolvedValueOnce([scheduledTask])
+        .mockResolvedValueOnce([{ ...scheduledTask, status: 'completed' }]);
+      getScheduleMock.mockResolvedValue({
+        ...scheduledTask,
+        status: 'completed',
+        events: [
+          { type: 'run_started', total: 1, startedAt: '2026-11-23T00:00:00.000Z' },
+          { type: 'request_started', index: 1, startedAt: '2026-11-23T00:00:00.000Z' },
+          {
+            type: 'request_completed',
+            index: 1,
+            startedAt: '2026-11-23T00:00:00.000Z',
+            finishedAt: '2026-11-23T00:00:00.010Z',
+            status: 200,
+            statusText: 'OK',
+            ok: true,
+            durationMs: 10,
+            headers: {},
+            body: { kind: 'json', contentType: 'application/json', sizeBytes: 11, content: { ok: true } },
+          },
+          {
+            type: 'run_completed',
+            finishedAt: '2026-11-23T00:00:00.010Z',
+            summary: { total: 1, completed: 1, succeeded: 1, failed: 0, averageDurationMs: 10 },
+          },
+        ],
+      });
+      const wrapper = mount(App);
+      await flushPromises();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await flushPromises();
+
+      expect(getScheduleMock).toHaveBeenCalledWith('scheduled-3');
+      expect(wrapper.text()).toContain('200 OK');
+      expect(wrapper.text()).toContain('执行完成');
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('deletes one finished schedule or clears all finished records', async () => {
+    const first = {
+      id: 'finished-1',
+      createdAt: '2026-11-23T01:00:00.000Z',
+      executeAt: '2026-11-23T01:01:00.000Z',
+      status: 'completed',
+      request: { method: 'GET', url: 'https://example.com/one', count: 1, intervalMs: 0 },
+    };
+    const second = {
+      ...first,
+      id: 'finished-2',
+      createdAt: '2026-11-23T00:00:00.000Z',
+      request: { ...first.request, url: 'https://example.com/two' },
+    };
+    listSchedulesMock
+      .mockResolvedValueOnce([first, second])
+      .mockResolvedValueOnce([second])
+      .mockResolvedValueOnce([]);
+    getScheduleMock.mockResolvedValue({ ...first, events: [] });
+    deleteScheduleRecordMock.mockResolvedValue({ deleted: 1 });
+    clearScheduleRecordsMock.mockResolvedValue({ deleted: 1 });
+    const wrapper = mount(App);
+    await flushPromises();
+
+    await wrapper.get('.schedule-actions .danger').trigger('click');
+    await flushPromises();
+    expect(deleteScheduleRecordMock).toHaveBeenCalledWith('finished-1');
+    expect(wrapper.text()).not.toContain('https://example.com/one');
+
+    await wrapper.get('.scheduled-runs-heading > button').trigger('click');
+    await flushPromises();
+    expect(clearScheduleRecordsMock).toHaveBeenCalledOnce();
+    expect(wrapper.text()).toContain('暂无定时任务');
   });
 });

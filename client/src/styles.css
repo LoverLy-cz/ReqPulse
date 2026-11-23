@@ -73,6 +73,31 @@ h1 em { color: var(--acid); font-style: normal; }
 .warning-note b { color: #dab85f; font-size: 9px; }
 .warning-note span { margin-top: 2px; color: #82775d; font-size: 8px; }
 
+.scheduled-runs { margin: -10px 0 30px; padding: 14px; border: 1px solid var(--line); background: rgba(12, 16, 19, .68); }
+.scheduled-runs-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.scheduled-runs-heading h3 { margin: 0; color: var(--cyan); font: 600 11px 'IBM Plex Mono', monospace; letter-spacing: .08em; }
+.scheduled-runs-heading p { margin: 4px 0 12px; color: var(--muted); font-size: 10px; font-weight: 500; }
+.scheduled-runs-heading > button { padding: 3px 0; border: 0; background: transparent; color: var(--danger); white-space: nowrap; font: 600 10px 'IBM Plex Mono', monospace; }
+.schedule-create { display: grid; grid-template-columns: 1fr 112px; gap: 8px; }
+.schedule-create label > span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 500; }
+.schedule-create input { width: 100%; padding: 9px 10px; border: 1px solid var(--line); outline: 0; background: var(--panel-high); color: var(--text); color-scheme: dark; font: 500 11px 'IBM Plex Mono', monospace; }
+.schedule-create input:focus { border-color: var(--cyan); }
+.schedule-create button { align-self: end; min-height: 36px; border: 1px solid var(--acid); background: transparent; color: var(--acid); font: 600 11px 'IBM Plex Mono', monospace; }
+.schedule-create button:hover:not(:disabled) { background: var(--acid); color: #10150d; }
+.schedule-error { margin-top: 8px; color: var(--danger); font-size: 10px; }
+.schedule-list { display: grid; gap: 6px; margin-top: 12px; }
+.schedule-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--line-soft); background: #0b0f12; }
+.schedule-item > div:first-child { min-width: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; }
+.schedule-item strong { color: var(--acid); font: 600 10px 'IBM Plex Mono', monospace; }
+.schedule-item span { color: #c0c9cd; font: 500 10px 'IBM Plex Mono', monospace; }
+.schedule-item small { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font: 500 9px 'IBM Plex Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-actions { display: flex; gap: 5px; }
+.schedule-actions button { padding: 5px 8px; border: 1px solid var(--line); background: transparent; color: var(--cyan); white-space: nowrap; font: 600 10px 'IBM Plex Mono', monospace; }
+.schedule-actions button:hover { border-color: var(--cyan); }
+.schedule-actions button.danger { color: var(--danger); }
+.schedule-actions button.danger:hover { border-color: var(--danger); }
+.schedule-empty { margin: 12px 0 0; color: var(--muted); font: 500 10px 'IBM Plex Mono', monospace; }
+
 .kv-editor, .body-editor { margin-top: 26px; }
 .section-heading { display: flex; justify-content: space-between; align-items: center; }
 .section-heading.compact { margin-bottom: 10px; }
@@ -181,6 +206,10 @@ html[data-theme='light'] .error-banner { background: #fff0ee; color: #a82e2e; }
 html[data-theme='light'] .warning-note { background: #fff8e6; }
 html[data-theme='light'] .warning-note b { color: #89620c; }
 html[data-theme='light'] .warning-note span { color: #8b7951; }
+html[data-theme='light'] .scheduled-runs { background: rgba(247, 250, 246, .8); }
+html[data-theme='light'] .schedule-create input { background: #fff; color: #27332d; color-scheme: light; }
+html[data-theme='light'] .schedule-item { background: #fff; }
+html[data-theme='light'] .schedule-item span { color: #4f5f57; }
 html[data-theme='light'] .section-heading h3 { color: #4f5f57; }
 html[data-theme='light'] .kv-row { background: #fff; }
 html[data-theme='light'] .kv-row input:not([type='checkbox']) { color: #27332d; }
@@ -218,6 +247,8 @@ html[data-theme='light'] .radar::after { background: #bdc8c0; }
 body,
 .results-panel,
 .url-bar,
+.scheduled-runs,
+.schedule-item,
 .kv-row,
 .browser-headers,
 .cookie-note,
@@ -246,6 +277,7 @@ body,
   .run-button { grid-column: 1 / -1; min-height: 43px; }
   .schedule-grid { grid-template-columns: 1fr 1fr; }
   .warning-note { grid-column: 1 / -1; }
+  .schedule-create { grid-template-columns: 1fr; }
   .response-content { grid-template-columns: 1fr; }
   .response-card summary { grid-template-columns: 34px minmax(0, 1fr) 66px 18px; }
   .result-date { display: none; }

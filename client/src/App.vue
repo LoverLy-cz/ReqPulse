@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
-import type { HttpMethod, KeyValueItem, RunConfig, RunEvent, RunSummary } from '../../shared/types';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import type {
+  HttpMethod,
+  KeyValueItem,
+  RunConfig,
+  RunEvent,
+  RunSummary,
+  ScheduledRunStatus,
+  ScheduledRunView,
+} from '../../shared/types';
 import KeyValueEditor from './components/KeyValueEditor.vue';
 import ResponseCard from './components/ResponseCard.vue';
 import {
@@ -12,6 +20,14 @@ import {
   type ThemeMode,
 } from './storage';
 import { runRequests } from './runStream';
+import {
+  cancelSchedule,
+  clearScheduleRecords,
+  createSchedule,
+  deleteScheduleRecord,
+  getSchedule,
+  listSchedules,
+} from './scheduleApi';
 
 type ResultEvent = Extract<RunEvent, { type: 'request_completed' | 'request_failed' }>;
 
@@ -73,8 +89,15 @@ const running = ref(false);
 const currentIndex = ref(0);
 const errorMessage = ref('');
 const stopped = ref(false);
+const scheduledAt = ref('');
+const schedules = ref<ScheduledRunView[]>([]);
+const scheduling = ref(false);
+const scheduleError = ref('');
 const theme = ref<ThemeMode>(loadTheme());
 let controller: AbortController | null = null;
+let scheduleRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let loadedScheduledTaskId: string | null = null;
+let pendingScheduledResultId: string | null = null;
 
 const supportsBody = computed(() => ['POST', 'PUT', 'PATCH'].includes(config.method));
 const bodyText = computed({
@@ -94,6 +117,9 @@ const browserSourcePreview = computed(() => {
   }
 });
 const progress = computed(() => (summary.total ? Math.round((summary.completed / summary.total) * 100) : 0));
+const hasFinishedSchedules = computed(() =>
+  schedules.value.some((task) => task.status !== 'scheduled' && task.status !== 'running'),
+);
 const statusLabel = computed(() => {
   if (running.value) return `正在执行第 ${currentIndex.value || 1} 次请求`;
   if (stopped.value) return '已手动停止';
@@ -115,6 +141,14 @@ watch(
   },
   { immediate: true },
 );
+
+onMounted(() => {
+  void refreshSchedules();
+});
+
+onUnmounted(() => {
+  if (scheduleRefreshTimer) clearTimeout(scheduleRefreshTimer);
+});
 
 function makeItem(): KeyValueItem {
   return { id: crypto.randomUUID(), enabled: true, key: '', value: '' };
@@ -213,6 +247,11 @@ async function startRun() {
   } finally {
     running.value = false;
     controller = null;
+    if (pendingScheduledResultId) {
+      const taskId = pendingScheduledResultId;
+      pendingScheduledResultId = null;
+      await loadScheduledResults(taskId);
+    }
   }
 }
 
@@ -220,6 +259,138 @@ function stopRun() {
   if (!controller) return;
   stopped.value = true;
   controller.abort();
+}
+
+async function scheduleRun() {
+  scheduleError.value = '';
+  const validationError = validate();
+  if (validationError) {
+    scheduleError.value = validationError;
+    return;
+  }
+  const executeAt = new Date(scheduledAt.value);
+  if (!scheduledAt.value || !Number.isFinite(executeAt.getTime()) || executeAt.getTime() <= Date.now()) {
+    scheduleError.value = '请选择未来的执行日期和时间';
+    return;
+  }
+
+  scheduling.value = true;
+  try {
+    await createSchedule(executeAt.toISOString(), buildPayload());
+    await refreshSchedules();
+  } catch (error) {
+    scheduleError.value = error instanceof Error ? error.message : '创建定时任务失败';
+  } finally {
+    scheduling.value = false;
+  }
+}
+
+async function refreshSchedules(silent = false) {
+  try {
+    const previousStatuses = new Map(schedules.value.map((task) => [task.id, task.status]));
+    const nextSchedules = await listSchedules();
+    const newlyFinished = nextSchedules.find(
+      (task) =>
+        (task.status === 'completed' || task.status === 'failed') &&
+        (previousStatuses.get(task.id) === 'scheduled' || previousStatuses.get(task.id) === 'running'),
+    );
+    const latestFinished =
+      !loadedScheduledTaskId && !results.value.length && !summary.completed
+        ? nextSchedules.find((task) => task.status === 'completed' || task.status === 'failed')
+        : undefined;
+
+    schedules.value = nextSchedules;
+    armScheduleRefresh();
+    if (!silent) scheduleError.value = '';
+
+    const taskToLoad = newlyFinished ?? latestFinished;
+    if (taskToLoad && taskToLoad.id !== loadedScheduledTaskId) {
+      if (running.value) pendingScheduledResultId = taskToLoad.id;
+      else await loadScheduledResults(taskToLoad.id);
+    }
+  } catch (error) {
+    if (!silent) scheduleError.value = error instanceof Error ? error.message : '读取定时任务失败';
+  }
+}
+
+function armScheduleRefresh() {
+  if (scheduleRefreshTimer) clearTimeout(scheduleRefreshTimer);
+  scheduleRefreshTimer = null;
+  if (!schedules.value.some((task) => task.status === 'scheduled' || task.status === 'running')) return;
+  scheduleRefreshTimer = setTimeout(() => {
+    scheduleRefreshTimer = null;
+    void refreshSchedules(true);
+  }, 1000);
+}
+
+async function cancelScheduledRun(id: string) {
+  try {
+    await cancelSchedule(id);
+    await refreshSchedules();
+  } catch (error) {
+    scheduleError.value = error instanceof Error ? error.message : '取消定时任务失败';
+  }
+}
+
+async function deleteScheduledRun(id: string) {
+  try {
+    await deleteScheduleRecord(id);
+    if (loadedScheduledTaskId === id) {
+      loadedScheduledTaskId = null;
+      clearResults();
+    }
+    await refreshSchedules();
+  } catch (error) {
+    scheduleError.value = error instanceof Error ? error.message : '删除定时任务记录失败';
+  }
+}
+
+async function clearScheduledRuns() {
+  try {
+    await clearScheduleRecords();
+    const showingScheduledResult = loadedScheduledTaskId !== null;
+    loadedScheduledTaskId = null;
+    pendingScheduledResultId = null;
+    if (showingScheduledResult) clearResults();
+    await refreshSchedules();
+  } catch (error) {
+    scheduleError.value = error instanceof Error ? error.message : '清空定时任务记录失败';
+  }
+}
+
+async function loadScheduledResults(id: string) {
+  try {
+    const task = await getSchedule(id);
+    clearResults();
+    for (const event of task.events) handleEvent(event);
+    if (task.status === 'cancelled') stopped.value = true;
+    if (task.status === 'failed' && task.error) errorMessage.value = task.error;
+    if (!task.events.length) scheduleError.value = '该任务尚无执行结果';
+    loadedScheduledTaskId = id;
+  } catch (error) {
+    scheduleError.value = error instanceof Error ? error.message : '读取执行结果失败';
+  }
+}
+
+function scheduleStatusLabel(status: ScheduledRunStatus): string {
+  return {
+    scheduled: '等待执行',
+    running: '执行中',
+    completed: '已完成',
+    cancelled: '已取消',
+    failed: '执行失败',
+  }[status];
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date(value));
 }
 
 function clearResults() {
@@ -305,6 +476,47 @@ function handleEvent(event: RunEvent) {
             <span>高次数或大响应可能占用较多内存</span>
           </div>
         </div>
+
+        <section class="scheduled-runs">
+          <div class="scheduled-runs-heading">
+            <div>
+              <h3>一次性定时执行</h3>
+              <p>任务保存在后端；关闭页面后仍会按时执行</p>
+            </div>
+            <button v-if="hasFinishedSchedules" type="button" @click="clearScheduledRuns">清空已结束记录</button>
+          </div>
+          <div class="schedule-create">
+            <label>
+              <span>执行日期时间</span>
+              <input v-model="scheduledAt" type="datetime-local" step="1" aria-label="执行日期时间" />
+            </label>
+            <button type="button" :disabled="scheduling" @click="scheduleRun">
+              {{ scheduling ? '创建中…' : '预约执行' }}
+            </button>
+          </div>
+          <div v-if="scheduleError" class="schedule-error" role="alert">{{ scheduleError }}</div>
+          <div v-if="schedules.length" class="schedule-list">
+            <article v-for="task in schedules" :key="task.id" class="schedule-item">
+              <div>
+                <strong>{{ scheduleStatusLabel(task.status) }}</strong>
+                <span>{{ formatDateTime(task.executeAt) }} · {{ task.request.method }} · {{ task.request.count }} 次</span>
+                <small :title="task.request.url">{{ task.request.url }}</small>
+              </div>
+              <div class="schedule-actions">
+                <button
+                  v-if="task.status === 'scheduled' || task.status === 'running'"
+                  type="button"
+                  @click="cancelScheduledRun(task.id)"
+                >取消</button>
+                <template v-else>
+                  <button type="button" @click="loadScheduledResults(task.id)">查看结果</button>
+                  <button class="danger" type="button" @click="deleteScheduledRun(task.id)">删除</button>
+                </template>
+              </div>
+            </article>
+          </div>
+          <p v-else class="schedule-empty">暂无定时任务 · Node 服务重启后任务记录会清空</p>
+        </section>
 
         <KeyValueEditor title="QUERY 参数" :items="config.query" key-placeholder="参数名" @add="addItem('query')" @remove="removeItem('query', $event)" />
         <KeyValueEditor

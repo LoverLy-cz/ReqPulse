@@ -65,10 +65,89 @@ export function validateRunConfig(input: unknown): RunConfig {
   return config;
 }
 
-export async function streamRun(req: Request, res: Response, config: RunConfig): Promise<void> {
-  const abortController = new AbortController();
+export async function executeRun(
+  config: RunConfig,
+  signal: AbortSignal,
+  emit: (event: RunEvent) => void,
+): Promise<void> {
   const cookieJar = new CookieJar(undefined, { allowSpecialUseDomain: true });
   const fetchWithCookies = makeFetchCookie(fetch, cookieJar);
+  const summary: RunSummary = {
+    total: config.count,
+    completed: 0,
+    succeeded: 0,
+    failed: 0,
+    averageDurationMs: 0,
+  };
+  let totalDuration = 0;
+
+  emit({ type: 'run_started', total: config.count, startedAt: new Date().toISOString() });
+
+  for (let index = 1; index <= config.count; index += 1) {
+    if (signal.aborted) break;
+
+    const startedAt = new Date();
+    const startedTime = performance.now();
+    emit({ type: 'request_started', index, startedAt: startedAt.toISOString() });
+
+    try {
+      const requestUrl = buildUrl(config);
+      await applyManualCookies(cookieJar, requestUrl, config);
+      const response = await fetchWithCookies(requestUrl, {
+        method: config.method,
+        headers: buildHeaders(config),
+        body: buildBody(config),
+        redirect: 'follow',
+        signal,
+      });
+      const body = await readResponseBody(response);
+      const durationMs = roundDuration(performance.now() - startedTime);
+      emit({
+        type: 'request_completed',
+        index,
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        durationMs,
+        headers: Object.fromEntries(response.headers.entries()),
+        body,
+      });
+      summary.completed += 1;
+      response.ok ? (summary.succeeded += 1) : (summary.failed += 1);
+      totalDuration += durationMs;
+    } catch (error) {
+      if (signal.aborted) break;
+      const durationMs = roundDuration(performance.now() - startedTime);
+      emit({
+        type: 'request_failed',
+        index,
+        startedAt: startedAt.toISOString(),
+        finishedAt: new Date().toISOString(),
+        durationMs,
+        error: errorMessage(error),
+      });
+      summary.completed += 1;
+      summary.failed += 1;
+      totalDuration += durationMs;
+    }
+
+    if (index < config.count && !signal.aborted) {
+      await abortableDelay(config.intervalMs, signal);
+    }
+  }
+
+  if (!signal.aborted) {
+    summary.averageDurationMs = summary.completed
+      ? roundDuration(totalDuration / summary.completed)
+      : 0;
+    emit({ type: 'run_completed', finishedAt: new Date().toISOString(), summary });
+  }
+}
+
+export async function streamRun(req: Request, res: Response, config: RunConfig): Promise<void> {
+  const abortController = new AbortController();
   const onClose = () => {
     if (!res.writableEnded) abortController.abort();
   };
@@ -80,81 +159,9 @@ export async function streamRun(req: Request, res: Response, config: RunConfig):
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const summary: RunSummary = {
-    total: config.count,
-    completed: 0,
-    succeeded: 0,
-    failed: 0,
-    averageDurationMs: 0,
-  };
-  let totalDuration = 0;
-
-  writeEvent(res, { type: 'run_started', total: config.count, startedAt: new Date().toISOString() });
-
   try {
-    for (let index = 1; index <= config.count; index += 1) {
-      if (abortController.signal.aborted) break;
-
-      const startedAt = new Date();
-      const startedTime = performance.now();
-      writeEvent(res, { type: 'request_started', index, startedAt: startedAt.toISOString() });
-
-      try {
-        const requestUrl = buildUrl(config);
-        await applyManualCookies(cookieJar, requestUrl, config);
-        const response = await fetchWithCookies(requestUrl, {
-          method: config.method,
-          headers: buildHeaders(config),
-          body: buildBody(config),
-          redirect: 'follow',
-          signal: abortController.signal,
-        });
-        const body = await readResponseBody(response);
-        const durationMs = roundDuration(performance.now() - startedTime);
-        const event: RunEvent = {
-          type: 'request_completed',
-          index,
-          startedAt: startedAt.toISOString(),
-          finishedAt: new Date().toISOString(),
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok,
-          durationMs,
-          headers: Object.fromEntries(response.headers.entries()),
-          body,
-        };
-        writeEvent(res, event);
-        summary.completed += 1;
-        response.ok ? (summary.succeeded += 1) : (summary.failed += 1);
-        totalDuration += durationMs;
-      } catch (error) {
-        if (abortController.signal.aborted) break;
-        const durationMs = roundDuration(performance.now() - startedTime);
-        writeEvent(res, {
-          type: 'request_failed',
-          index,
-          startedAt: startedAt.toISOString(),
-          finishedAt: new Date().toISOString(),
-          durationMs,
-          error: errorMessage(error),
-        });
-        summary.completed += 1;
-        summary.failed += 1;
-        totalDuration += durationMs;
-      }
-
-      if (index < config.count && !abortController.signal.aborted) {
-        await abortableDelay(config.intervalMs, abortController.signal);
-      }
-    }
-
-    if (!abortController.signal.aborted) {
-      summary.averageDurationMs = summary.completed
-        ? roundDuration(totalDuration / summary.completed)
-        : 0;
-      writeEvent(res, { type: 'run_completed', finishedAt: new Date().toISOString(), summary });
-      res.end();
-    }
+    await executeRun(config, abortController.signal, (event) => writeEvent(res, event));
+    if (!abortController.signal.aborted) res.end();
   } finally {
     res.off('close', onClose);
   }
