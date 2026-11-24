@@ -99,3 +99,4 @@
 - 2026-11-24 08:40 完成：新增安全的 Copy as fetch 解析器（不执行剪贴板代码），支持 URL、GET/POST/PUT/PATCH/DELETE、Headers、Referrer→Referer 及 JSON/Text 请求体；页面识别粘贴后确认导入，按钮读取剪贴板后直接填充，并明确提示 Cookie 可能需手动填写。
 - 2026-11-24 08:40 验证：新增粘贴确认与剪贴板按钮测试；46 个测试全部通过，TypeScript 检查、生产构建和 git diff 检查通过。全量测试首次遇到既有 80ms 定时用例时序抖动，单测及随后全量复验均通过。
 - 2026-11-24 08:40 交付准备：按用户要求将粒子背景、文字/背景清晰度与 Copy as fetch 导入功能一并提交并推送，继续排除无关 `.idea/vcs.xml`。
+- 2026-11-24 08:42 交付：功能提交 `55ad797 feat: add fetch import and interactive background` 已推送到 `origin/dev`；推送同时包含此前尚未同步的定时请求提交 `4ea0f00`，无关 `.idea/vcs.xml` 未纳入版本控制。
