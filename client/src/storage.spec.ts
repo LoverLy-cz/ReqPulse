@@ -7,12 +7,15 @@ import {
   LEGACY_BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY,
   LEGACY_STORAGE_KEY,
   loadConfig,
+  loadParticleMode,
   loadTheme,
   migrateBrowserHeadersDefaultOff,
   saveConfig,
+  saveParticleMode,
   saveTheme,
   STORAGE_KEY,
   THEME_STORAGE_KEY,
+  PARTICLE_MODE_STORAGE_KEY,
 } from './storage';
 
 const fallback: RunConfig = {
@@ -84,5 +87,13 @@ describe('request config storage', () => {
     expect(loadTheme()).toBe('dark');
     saveTheme('light');
     expect(loadTheme()).toBe('light');
+  });
+
+  it('persists a valid particle mode and falls back to constellation', () => {
+    expect(loadParticleMode()).toBe('constellation');
+    localStorage.setItem(PARTICLE_MODE_STORAGE_KEY, 'unknown');
+    expect(loadParticleMode()).toBe('constellation');
+    saveParticleMode('pulse');
+    expect(loadParticleMode()).toBe('pulse');
   });
 });

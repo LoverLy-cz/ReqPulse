@@ -10,12 +10,16 @@ import type {
   ScheduledRunView,
 } from '../../shared/types';
 import KeyValueEditor from './components/KeyValueEditor.vue';
+import ParticleBackground, { type ParticleMode } from './components/ParticleBackground.vue';
 import ResponseCard from './components/ResponseCard.vue';
+import { parseCopyAsFetch, type ImportedFetchRequest } from './copyAsFetch';
 import {
   loadConfig,
+  loadParticleMode,
   loadTheme,
   migrateBrowserHeadersDefaultOff,
   saveConfig,
+  saveParticleMode,
   saveTheme,
   type ThemeMode,
 } from './storage';
@@ -94,6 +98,14 @@ const schedules = ref<ScheduledRunView[]>([]);
 const scheduling = ref(false);
 const scheduleError = ref('');
 const theme = ref<ThemeMode>(loadTheme());
+const particleMode = ref<ParticleMode>(loadParticleMode());
+const particleModes: { value: ParticleMode; label: string }[] = [
+  { value: 'constellation', label: '星链' },
+  { value: 'drift', label: '流场' },
+  { value: 'pulse', label: '脉冲' },
+];
+const pendingFetchImport = ref<ImportedFetchRequest | null>(null);
+const fetchImportMessage = ref('');
 let controller: AbortController | null = null;
 let scheduleRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let loadedScheduledTaskId: string | null = null;
@@ -142,12 +154,16 @@ watch(
   { immediate: true },
 );
 
+watch(particleMode, saveParticleMode);
+
 onMounted(() => {
   void refreshSchedules();
+  window.addEventListener('paste', handleFetchPaste);
 });
 
 onUnmounted(() => {
   if (scheduleRefreshTimer) clearTimeout(scheduleRefreshTimer);
+  window.removeEventListener('paste', handleFetchPaste);
 });
 
 function makeItem(): KeyValueItem {
@@ -175,6 +191,44 @@ function addItem(target: 'query' | 'headers') {
 
 function removeItem(target: 'query' | 'headers', id: string) {
   config[target] = config[target].filter((item) => item.id !== id);
+}
+
+function handleFetchPaste(event: ClipboardEvent) {
+  const imported = parseCopyAsFetch(event.clipboardData?.getData('text/plain') ?? '');
+  if (!imported) return;
+  event.preventDefault();
+  pendingFetchImport.value = imported;
+  fetchImportMessage.value = '';
+}
+
+async function importFetchFromClipboard() {
+  try {
+    if (!navigator.clipboard?.readText) throw new Error('当前浏览器不支持读取剪贴板');
+    const imported = parseCopyAsFetch(await navigator.clipboard.readText());
+    if (!imported) throw new Error('剪贴板中没有可识别的 Copy as fetch 内容');
+    applyFetchImport(imported);
+  } catch (error) {
+    fetchImportMessage.value = error instanceof Error ? error.message : '读取剪贴板失败';
+  }
+}
+
+function applyFetchImport(imported = pendingFetchImport.value) {
+  if (!imported) return;
+  config.url = imported.url;
+  config.method = imported.method;
+  config.headers = imported.headers.map((header) => ({
+    id: crypto.randomUUID(),
+    enabled: true,
+    ...header,
+  }));
+  if (config.browserHeaders && imported.referrer) config.browserHeaders.sourceUrl = imported.referrer;
+  if (['POST', 'PUT', 'PATCH'].includes(imported.method) && imported.body !== null) {
+    config.body = { mode: imported.bodyMode, value: imported.body };
+    previousTextBody = imported.body;
+  }
+  pendingFetchImport.value = null;
+  fetchImportMessage.value = `已导入 ${imported.method} 请求和 ${imported.headers.length} 个 Headers`;
+  errorMessage.value = '';
 }
 
 function setBodyMode(mode: 'json' | 'text' | 'form-data') {
@@ -423,12 +477,24 @@ function handleEvent(event: RunEvent) {
 </script>
 
 <template>
+  <ParticleBackground :mode="particleMode" />
   <main class="app-shell">
     <header class="topbar">
       <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
       <div>
         <p class="eyebrow">REQUEST ORCHESTRATOR</p>
         <h1>REQ <em>PULSE</em></h1>
+      </div>
+      <div class="particle-switch" role="group" aria-label="粒子背景效果">
+        <span>FX</span>
+        <button
+          v-for="mode in particleModes"
+          :key="mode.value"
+          type="button"
+          :class="{ active: particleMode === mode.value }"
+          :aria-pressed="particleMode === mode.value"
+          @click="particleMode = mode.value"
+        >{{ mode.label }}</button>
       </div>
       <button
         class="theme-toggle"
@@ -459,6 +525,25 @@ function handleEvent(event: RunEvent) {
             <span>{{ running ? '运行中' : '开始运行' }}</span><b>→</b>
           </button>
         </div>
+
+        <div class="fetch-import-row">
+          <button type="button" aria-label="从剪贴板导入 Copy as fetch" @click="importFetchFromClipboard">
+            ⇩ 粘贴 FETCH
+          </button>
+          <span>Chrome DevTools · Copy as fetch（Cookie 可能需手动填写）</span>
+        </div>
+
+        <section v-if="pendingFetchImport" class="fetch-import-prompt" role="status">
+          <div>
+            <strong>检测到 Copy as fetch</strong>
+            <span>{{ pendingFetchImport.method }} · {{ pendingFetchImport.url }}</span>
+          </div>
+          <div>
+            <button type="button" @click="pendingFetchImport = null">忽略</button>
+            <button class="fetch-import-confirm" type="button" @click="applyFetchImport()">导入配置</button>
+          </div>
+        </section>
+        <p v-if="fetchImportMessage" class="fetch-import-message" role="status">{{ fetchImportMessage }}</p>
 
         <div v-if="errorMessage" class="error-banner" role="alert">{{ errorMessage }}</div>
 

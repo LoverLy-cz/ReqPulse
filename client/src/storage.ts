@@ -7,7 +7,9 @@ export const BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY =
 export const LEGACY_BROWSER_HEADERS_DEFAULT_OFF_MIGRATION_KEY =
   'http-more:migration:browser-headers-default-off';
 export const THEME_STORAGE_KEY = 'req-pulse:theme';
+export const PARTICLE_MODE_STORAGE_KEY = 'req-pulse:particle-mode';
 export type ThemeMode = 'dark' | 'light';
+export type ParticleMode = 'constellation' | 'drift' | 'pulse';
 
 export function saveConfig(config: RunConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
@@ -53,4 +55,13 @@ export function loadTheme(): ThemeMode {
 
 export function saveTheme(theme: ThemeMode): void {
   localStorage.setItem(THEME_STORAGE_KEY, theme);
+}
+
+export function loadParticleMode(): ParticleMode {
+  const stored = localStorage.getItem(PARTICLE_MODE_STORAGE_KEY);
+  return stored === 'drift' || stored === 'pulse' ? stored : 'constellation';
+}
+
+export function saveParticleMode(mode: ParticleMode): void {
+  localStorage.setItem(PARTICLE_MODE_STORAGE_KEY, mode);
 }

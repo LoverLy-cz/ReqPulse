@@ -3,7 +3,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
-import { STORAGE_KEY, THEME_STORAGE_KEY } from './storage';
+import { PARTICLE_MODE_STORAGE_KEY, STORAGE_KEY, THEME_STORAGE_KEY } from './storage';
 
 const runRequestsMock = vi.fn();
 const createScheduleMock = vi.fn();
@@ -12,6 +12,18 @@ const getScheduleMock = vi.fn();
 const cancelScheduleMock = vi.fn();
 const deleteScheduleRecordMock = vi.fn();
 const clearScheduleRecordsMock = vi.fn();
+const copiedFetch = `fetch("https://cad-aps.crowncad.com/prod/account/info", {
+  "headers": {
+    "accept": "*/*",
+    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "language": "chinese"
+  },
+  "referrer": "https://cad.crowncad.com/",
+  "body": null,
+  "method": "GET",
+  "mode": "cors",
+  "credentials": "include"
+});`;
 vi.mock('./runStream', () => ({
   runRequests: (...args: unknown[]) => runRequestsMock(...args),
 }));
@@ -34,6 +46,7 @@ describe('App', () => {
     cancelScheduleMock.mockReset();
     deleteScheduleRecordMock.mockReset();
     clearScheduleRecordsMock.mockReset();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   });
 
   it('uses the Req Pulse brand name', () => {
@@ -64,6 +77,17 @@ describe('App', () => {
     expect(wrapper.get('button[aria-label="切换为深色主题"]')).toBeTruthy();
   });
 
+  it('switches particle background effects and persists the choice', async () => {
+    const wrapper = mount(App);
+    expect(wrapper.get('.particle-switch button.active').text()).toBe('星链');
+
+    const pulseButton = wrapper.findAll('.particle-switch button').find((button) => button.text() === '脉冲');
+    await pulseButton!.trigger('click');
+
+    expect(wrapper.get('.particle-switch button.active').text()).toBe('脉冲');
+    expect(localStorage.getItem(PARTICLE_MODE_STORAGE_KEY)).toBe('pulse');
+  });
+
   it('offers common header name and value suggestions while allowing free input', async () => {
     const wrapper = mount(App);
     await wrapper.findAll('.kv-editor .empty-add')[1].trigger('click');
@@ -84,6 +108,48 @@ describe('App', () => {
     await inputs[0].setValue('X-Custom-Header');
     expect((inputs[0].element as HTMLInputElement).value).toBe('X-Custom-Header');
     expect(wrapper.text()).toContain('COOKIE JAR · ON');
+  });
+
+  it('recognizes pasted Copy as fetch text and imports it after confirmation', async () => {
+    const wrapper = mount(App);
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', {
+      value: { getData: (format: string) => (format === 'text/plain' ? copiedFetch : '') },
+    });
+
+    window.dispatchEvent(paste);
+    await wrapper.vm.$nextTick();
+
+    expect(paste.defaultPrevented).toBe(true);
+    expect(wrapper.get('.fetch-import-prompt').text()).toContain('检测到 Copy as fetch');
+    await wrapper.get('.fetch-import-confirm').trigger('click');
+    await flushPromises();
+
+    expect((wrapper.get('input[aria-label="请求 URL"]').element as HTMLInputElement).value)
+      .toBe('https://cad-aps.crowncad.com/prod/account/info');
+    expect((wrapper.get('select[aria-label="请求方法"]').element as HTMLSelectElement).value).toBe('GET');
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
+    expect(stored.headers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'accept', value: '*/*' }),
+      expect.objectContaining({ key: 'language', value: 'chinese' }),
+      expect.objectContaining({ key: 'Referer', value: 'https://cad.crowncad.com/' }),
+    ]));
+  });
+
+  it('reads Copy as fetch from the clipboard button and fills the request directly', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: vi.fn().mockResolvedValue(copiedFetch) },
+    });
+    const wrapper = mount(App);
+
+    await wrapper.get('button[aria-label="从剪贴板导入 Copy as fetch"]').trigger('click');
+    await flushPromises();
+
+    expect(navigator.clipboard.readText).toHaveBeenCalled();
+    expect((wrapper.get('input[aria-label="请求 URL"]').element as HTMLInputElement).value)
+      .toBe('https://cad-aps.crowncad.com/prod/account/info');
+    expect(wrapper.text()).toContain('已导入 GET 请求和 4 个 Headers');
   });
 
   it('detects browser headers and sends the configured source page', async () => {
